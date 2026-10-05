@@ -1,0 +1,4 @@
+-- Run after the existing E-Message schema. Username is supplied in auth metadata.
+create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path=public as $$
+declare u text; begin u=lower(trim(coalesce(new.raw_user_meta_data->>'username',''))); if u !~ '^[a-z0-9_]{3,24}$' then u='user_'||substr(replace(new.id::text,'-',''),1,12); end if; insert into public.profiles(id,username,username_lower,display_name,email) values(new.id,u,u,coalesce(nullif(new.raw_user_meta_data->>'display_name',''),u),new.email) on conflict(id) do update set username=excluded.username,username_lower=excluded.username_lower,display_name=excluded.display_name,email=excluded.email; return new; end; $$;
+drop trigger if exists on_auth_user_created on auth.users; create trigger on_auth_user_created after insert on auth.users for each row execute procedure public.handle_new_user();
